@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tuition Register</title>
+<meta name="theme-color" content="#0f6b5c">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+/* Layout: one column register — dues summary up top, then tabs for Today / Classes / Payments / Teachers */
+:root{
+  --bg:#f3f5f4; --surface:#ffffff; --ink:#15302b; --muted:#5b6f6a; --line:#d9e1de;
+  --accent:#0f6b5c; --accent-ink:#ffffff; --accent-soft:#dcefe9;
+  --saffron:#e08a12; --good:#1f7a43; --good-soft:#dff2e5; --bad:#b4372b; --bad-soft:#fbe4e1; --neutral-soft:#eceff0;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r:12px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0e1614; --surface:#16211e; --ink:#e6efec; --muted:#93a6a1; --line:#2a3834;
+  --accent:#4fc1a8; --accent-ink:#06201a; --accent-soft:#183a33;
+  --saffron:#f0a440; --good:#6fd193; --good-soft:#18352455; --bad:#f08a7e; --bad-soft:#3d1e1a; --neutral-soft:#222e2b;
+  color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0e1614; --surface:#16211e; --ink:#e6efec; --muted:#93a6a1; --line:#2a3834;
+  --accent:#4fc1a8; --accent-ink:#06201a; --accent-soft:#183a33;
+  --saffron:#f0a440; --good:#6fd193; --good-soft:#18352455; --bad:#f08a7e; --bad-soft:#3d1e1a; --neutral-soft:#222e2b;
+  color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 60px}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:1.7rem}
+h2{font-size:1.15rem}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:.82rem}
+.label{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.monthnav{display:flex;align-items:center;gap:6px}
+.monthnav span{min-width:120px;text-align:center;font-weight:600}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--ink)}
+button.icon{padding:6px 10px}
+button.danger{color:var(--bad);border-color:var(--bad-soft)}
+button:disabled{opacity:.5;cursor:not-allowed}
+
+.due{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:14px}
+.due-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.due-total{font-family:var(--display);font-size:2.2rem;font-weight:700;line-height:1}
+.due-total.zero{color:var(--good)}
+.tcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.tcard{border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.tcard-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.tcard .name{font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.stats div{display:flex;flex-direction:column}
+.stats b{font-variant-numeric:tabular-nums;font-size:1rem}
+.balance{display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding-top:8px}
+.balance b{font-family:var(--display);font-size:1.15rem}
+.pill{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--neutral-soft);color:var(--muted);white-space:nowrap}
+.pill.present{background:var(--good-soft);color:var(--good)}
+.pill.absent{background:var(--bad-soft);color:var(--bad)}
+.pill.rate{background:var(--accent-soft);color:var(--accent)}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{border:none;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:10px 12px;color:var(--muted);font-weight:600;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--saffron)}
+.panel{display:flex;flex-direction:column;gap:12px}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+
+.list{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.row{display:grid;grid-template-columns:62px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.row:first-child{border-top:none}
+.row.click{cursor:pointer}
+.row.click:hover{background:var(--bg)}
+.date{display:flex;flex-direction:column;align-items:center;line-height:1.1}
+.date b{font-family:var(--display);font-size:1.3rem}
+.date span{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.row .mid{min-width:0}
+.row .mid .t{font-weight:600}
+.row .amt{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.today-row{grid-template-columns:1fr auto}
+.mark{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.mark button{padding:7px 12px}
+.mark .p{border-color:var(--good);color:var(--good)}
+.mark .a{border-color:var(--bad);color:var(--bad)}
+
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r);padding:26px 18px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.notice{font-size:.85rem;color:var(--muted);padding:8px 12px;border-radius:8px;background:var(--neutral-soft)}
+.notice.err{background:var(--bad-soft);color:var(--bad)}
+
+/* sheet */
+.overlay{position:fixed;inset:0;background:rgba(5,20,16,.45);display:flex;align-items:flex-end;justify-content:center;z-index:50;
+  padding:max(12px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+@media(min-width:620px){.overlay{align-items:center}}
+.sheet{background:var(--surface);color:var(--ink);border-radius:16px;width:100%;max-width:480px;max-height:100%;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field > span{font-size:.82rem;font-weight:600;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 11px;width:100%;min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg label{flex:1;min-width:90px}
+.seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg span{display:block;text-align:center;padding:9px 8px;border:1px solid var(--line);border-radius:9px;cursor:pointer;font-weight:500;font-size:.9rem}
+.seg input:checked + span{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.seg input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.days{display:flex;gap:5px;flex-wrap:wrap}
+.days label{flex:1;min-width:38px}
+.sheet-actions{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.sheet-actions .r{display:flex;gap:8px;margin-left:auto}
+.hint{font-size:.8rem;color:var(--muted)}
+.feebox{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:var(--accent-soft);border-radius:10px;padding:12px 14px}
+.feebox div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.feebox b{font-family:var(--display);font-size:1.35rem;font-variant-numeric:tabular-nums;color:var(--ink)}
+.feebox .calc{grid-column:1/-1;font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.backup{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:16px;margin-top:8px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:999px;font-size:.88rem;z-index:60}
+@media (max-width:420px){.row{grid-template-columns:52px 1fr auto;gap:10px;padding:11px 12px}.due-total{font-size:1.9rem}}
+@media (max-width:520px){.today-row{grid-template-columns:1fr}.today-row .mark{justify-content:flex-start}}
+@media (prefers-reduced-motion:no-preference){button{transition:border-color .15s,background .15s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="label">Tuition register</div>
+      <h1>Attendance &amp; fees</h1>
+    </div>
+    <div class="monthnav">
+      <button class="icon" id="prevM" aria-label="Previous month">‹</button>
+      <span id="monthLabel" class="num">—</span>
+      <button class="icon" id="nextM" aria-label="Next month">›</button>
+    </div>
+  </header>
+
+  <div id="status" class="notice" hidden></div>
+
+  <section class="due" id="dueBox">
+    <div class="due-head">
+      <div>
+        <div class="label">Total to pay now</div>
+        <div class="due-total num" id="dueTotal">₹0</div>
+      </div>
+      <div class="small muted" id="dueSub">All classes so far, minus payments made</div>
+    </div>
+    <div class="tcards" id="tcards"></div>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-today" aria-selected="true" data-tab="today">Today</button>
+    <button role="tab" id="tab-classes" aria-selected="false" data-tab="classes">Classes</button>
+    <button role="tab" id="tab-payments" aria-selected="false" data-tab="payments">Payments</button>
+    <button role="tab" id="tab-teachers" aria-selected="false" data-tab="teachers">Teachers &amp; rates</button>
+  </nav>
+
+  <section class="panel" id="panel"></section>
+
+  <footer class="backup">
+    <div class="small muted">Your records are saved on this phone only. Save a backup file now and then (e.g. to WhatsApp or Google Drive) so nothing is lost.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="backupBtn">Save backup</button>
+      <button id="restoreBtn">Restore backup</button>
+      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+    </div>
+  </footer>
+</div>
+
+<div id="sheetHost"></div>
+<div id="toastHost"></div>
+
+<script>
+(() => {
+const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const STATUS = {
+  present:{label:"Attended", cls:"present", paid:true},
+  absent:{label:"She was absent", cls:"absent", paid:false},
+  teacher_off:{label:"Teacher on leave", cls:"", paid:false},
+  holiday:{label:"Holiday", cls:"", paid:false}
+};
+const state = {
+  teachers:[], sessions:[], payments:[],
+  loaded:{teachers:false,sessions:false,payments:false},
+  tab:"today", month: ym(new Date()), filterTeacher:"all",
+  canWrite:true
+};
+let db = null;
+
+// ---------- helpers ----------
+function pad(n){return String(n).padStart(2,"0")}
+function ym(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)}
+function isoDate(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+function todayISO(){return isoDate(new Date())}
+function parseISO(s){const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)}
+function mins(t){if(!t)return null;const [h,m]=t.split(":").map(Number);return h*60+m}
+function hoursOf(s,e){const a=mins(s),b=mins(e);if(a==null||b==null)return 0;let d=b-a;if(d<0)d+=1440;return d/60}
+function fmtTime(t){if(!t)return"";let [h,m]=t.split(":").map(Number);const ap=h>=12?"pm":"am";h=h%12||12;return h+(m?":"+pad(m):"")+" "+ap}
+function fmtHrs(h){const m=Math.round(h*60);const hh=Math.floor(m/60),mm=m%60;return (hh?hh+" h":"")+(hh&&mm?" ":"")+(mm?mm+" min":"")||"0 min"}
+function rupee(n){const v=Math.round(n*100)/100;return "₹"+v.toLocaleString("en-IN",{maximumFractionDigits:2})}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function teacherById(id){return state.teachers.find(t=>t.id===id)}
+function sessionAmount(s){
+  if(!STATUS[s.status]?.paid) return 0;
+  const rate=Number(s.rate)||0;
+  return s.payType==="hour" ? hoursOf(s.start,s.end)*rate : rate;
+}
+function monthLabel(m){const [y,mm]=m.split("-").map(Number);return MONTHS[mm-1]+" "+y}
+function shiftMonth(m,d){const [y,mm]=m.split("-").map(Number);return ym(new Date(y,mm-1+d,1))}
+function toast(msg){const h=document.getElementById("toastHost");h.innerHTML=`<div class="toast" role="status">${esc(msg)}</div>`;clearTimeout(toast._t);toast._t=setTimeout(()=>h.innerHTML="",2200)}
+function setStatus(msg,err){const el=document.getElementById("status");if(!msg){el.hidden=true;return}el.hidden=false;el.textContent=msg;el.className="notice"+(err?" err":"")}
+
+// ---------- totals ----------
+function teacherTotals(t){
+  const all=state.sessions.filter(s=>s.teacherId===t.id);
+  const earnedAll=all.reduce((a,s)=>a+sessionAmount(s),0);
+  const paidAll=state.payments.filter(p=>p.teacherId===t.id).reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const inMonth=all.filter(s=>s.date.startsWith(state.month));
+  const attended=inMonth.filter(s=>s.status==="present");
+  const hrs=attended.reduce((a,s)=>a+hoursOf(s.start,s.end),0);
+  const earnedMonth=inMonth.reduce((a,s)=>a+sessionAmount(s),0);
+  const missed=inMonth.filter(s=>s.status==="absent").length;
+  return {earnedAll,paidAll,balance:earnedAll-paidAll,attended:attended.length,hrs,earnedMonth,missed};
+}
+
+// ---------- render ----------
+function render(){
+  document.getElementById("monthLabel").textContent=monthLabel(state.month);
+  renderDue();
+  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===state.tab));
+  const p=document.getElementById("panel");
+  if(!(state.loaded.teachers)){p.innerHTML=`<div class="empty"><span class="muted">Loading your register…</span></div>`;return}
+  ({today:renderToday,classes:renderClasses,payments:renderPayments,teachers:renderTeachers})[state.tab](p);
+}
+
+function renderDue(){
+  const box=document.getElementById("tcards");
+  const active=state.teachers;
+  let total=0;
+  if(!active.length){
+    box.innerHTML=`<div class="small muted">Add a teacher to start tracking classes and fees.</div>`;
+    document.getElementById("dueTotal").textContent="₹0";
+    document.getElementById("dueTotal").classList.add("zero");
+    return;
+  }
+  box.innerHTML=active.map(t=>{
+    const x=teacherTotals(t); total+=x.balance;
+    const bal = x.balance>0.005 ? `<b class="num">${rupee(x.balance)}</b>` : x.balance<-0.005 ? `<b class="num" style="color:var(--good)">${rupee(-x.balance)} advance</b>` : `<b class="num" style="color:var(--good)">Settled</b>`;
+    return `<div class="tcard">
+      <div class="tcard-top"><div style="min-width:0"><div class="name">${esc(t.name)}</div><div class="small muted">${esc(t.subject||"")}</div></div>
+      <span class="pill rate">${rupee(t.rate)}/${t.payType==="hour"?"hr":"day"}</span></div>
+      <div class="stats">
+        <div><span class="label">Classes</span><b>${x.attended}</b></div>
+        <div><span class="label">${t.payType==="hour"?"Hours":"Missed"}</span><b>${t.payType==="hour"?fmtHrs(x.hrs):x.missed}</b></div>
+        <div><span class="label">Fee</span><b>${rupee(x.earnedMonth)}</b></div>
+      </div>
+      <div class="balance"><span class="small muted">Due now</span>${bal}</div>
+      <button class="ghost small" style="align-self:flex-start;padding:2px 0" data-pay="${t.id}" ${state.canWrite?"":"disabled"}>+ Record payment</button>
+    </div>`;
+  }).join("");
+  const dt=document.getElementById("dueTotal");
+  dt.textContent=rupee(Math.max(total,0)); dt.classList.toggle("zero",total<=0.005);
+  document.getElementById("dueSub").textContent=`Cards show ${monthLabel(state.month)} · "Due now" covers all months`;
+}
+
+function noTeachers(p){
+  p.innerHTML=`<div class="empty"><h2>Add the first teacher</h2>
+  <p class="muted" style="max-width:42ch;margin:0">Enter the teacher's name and whether you pay per hour or per day. Then each day, mark attendance and enter the time the class ran.</p>
+  <button class="primary" data-act="addTeacher" ${state.canWrite?"":"disabled"}>Add teacher</button></div>`;
+}
+
+function renderToday(p){
+  if(!state.teachers.length) return noTeachers(p);
+  const t=todayISO(), dow=new Date().getDay();
+  const todays=state.sessions.filter(s=>s.date===t);
+  const d=new Date(), dis=state.canWrite?"":"disabled";
+  const rows=state.teachers.map(x=>{
+    const done=todays.filter(s=>s.teacherId===x.id);
+    const marked=done.map(s=>`<div class="small num" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
+      <span class="pill ${STATUS[s.status].cls}">${STATUS[s.status].label}</span>
+      <span class="muted">${timeRange(s)}${s.start&&s.end?" ("+fmtHrs(hoursOf(s.start,s.end))+")":""}${STATUS[s.status].paid?" · "+rupee(sessionAmount(s)):""}</span>
+      <button class="ghost small" style="padding:0 4px" data-edit="${s.id}">Change</button></div>`).join("");
+    return `<div class="row today-row"><div class="mid"><div class="t">${esc(x.name)} <span class="muted small">${esc(x.subject||"")}</span></div>
+      ${marked||`<div class="small muted">Not marked yet today</div>`}</div>
+      <div class="mark"><button class="p" data-quick="present" data-t="${x.id}" ${dis}>${done.length?"+ Another class":"Attended"}</button>${done.length?"":`<button class="a" data-quick="absent" data-t="${x.id}" ${dis}>Absent</button>`}</div></div>`;
+  }).join("");
+  p.innerHTML=`<div class="panel-head"><div><h2>${DAYS[dow]}day, ${d.getDate()} ${MONTHS[d.getMonth()]}</h2><div class="small muted">Tap “Attended” and enter the time the class ran</div></div>
+    <button data-act="addClass" ${dis}>+ Add class for another day</button></div>
+    <div class="list">${rows}</div>`;
+}
+function timeRange(s){return s.start&&s.end?`${fmtTime(s.start)} – ${fmtTime(s.end)}`:"No time entered"}
+
+function teacherFilterSelect(){
+  return `<select id="tf" style="width:auto"><option value="all">All teachers</option>${state.teachers.map(t=>`<option value="${t.id}" ${state.filterTeacher===t.id?"selected":""}>${esc(t.name)}</option>`).join("")}</select>`;
+}
+
+function renderClasses(p){
+  if(!state.teachers.length) return noTeachers(p);
+  let list=state.sessions.filter(s=>s.date.startsWith(state.month));
+  if(state.filterTeacher!=="all") list=list.filter(s=>s.teacherId===state.filterTeacher);
+  list.sort((a,b)=>b.date.localeCompare(a.date)||(b.start||"").localeCompare(a.start||""));
+  const total=list.reduce((a,s)=>a+sessionAmount(s),0);
+  const rows=list.map(s=>{const t=teacherById(s.teacherId);const d=parseISO(s.date);
+    return `<div class="row click" data-edit="${s.id}" tabindex="0">
+      <div class="date"><b class="num">${d.getDate()}</b><span>${DAYS[d.getDay()]}</span></div>
+      <div class="mid"><div class="t">${esc(t?.name||"Removed teacher")}</div>
+        <div class="small muted num">${timeRange(s)}${s.payType==="hour"&&s.start?" · "+fmtHrs(hoursOf(s.start,s.end)):""}${s.note?" · "+esc(s.note):""}</div></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${STATUS[s.status].cls}">${STATUS[s.status].label}</span><span class="amt small">${STATUS[s.status].paid?rupee(sessionAmount(s)):"—"}</span></div>
+    </div>`}).join("");
+  p.innerHTML=`<div class="panel-head"><div><h2>Classes in ${monthLabel(state.month)}</h2><div class="small muted num">${list.filter(s=>s.status==="present").length} attended · fee ${rupee(total)}</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${teacherFilterSelect()}<button data-act="addClass" ${state.canWrite?"":"disabled"}>+ Add class</button></div></div>
+    ${rows?`<div class="list">${rows}</div>`:`<div class="empty"><span class="muted">No classes recorded for this month yet.</span></div>`}`;
+}
+
+function renderPayments(p){
+  if(!state.teachers.length) return noTeachers(p);
+  let list=[...state.payments];
+  if(state.filterTeacher!=="all") list=list.filter(x=>x.teacherId===state.filterTeacher);
+  list.sort((a,b)=>b.date.localeCompare(a.date));
+  const inMonth=list.filter(x=>x.date.startsWith(state.month));
+  const rows=list.map(x=>{const t=teacherById(x.teacherId);const d=parseISO(x.date);
+    return `<div class="row click" data-editpay="${x.id}" tabindex="0">
+      <div class="date"><b class="num">${d.getDate()}</b><span>${MONTHS[d.getMonth()].slice(0,3)}</span></div>
+      <div class="mid"><div class="t">${esc(t?.name||"Removed teacher")}</div><div class="small muted">${esc(x.method||"")}${x.note?" · "+esc(x.note):""}</div></div>
+      <div class="amt">${rupee(x.amount)}</div></div>`}).join("");
+  p.innerHTML=`<div class="panel-head"><div><h2>Payments made</h2><div class="small muted num">${rupee(inMonth.reduce((a,x)=>a+(+x.amount||0),0))} paid in ${monthLabel(state.month)}</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${teacherFilterSelect()}<button class="primary" data-act="addPay" ${state.canWrite?"":"disabled"}>+ Record payment</button></div></div>
+    ${rows?`<div class="list">${rows}</div>`:`<div class="empty"><span class="muted">No payments recorded yet. When you pay the teacher, add it here and the amount due goes down.</span></div>`}`;
+}
+
+function renderTeachers(p){
+  if(!state.teachers.length) return noTeachers(p);
+  const rows=state.teachers.map(t=>`<div class="row click today-row" data-editteacher="${t.id}" tabindex="0">
+    <div class="mid"><div class="t">${esc(t.name)}</div>
+    <div class="small muted">${esc(t.subject||"")}</div></div>
+    <span class="pill rate">${rupee(t.rate)} per ${t.payType==="hour"?"hour":"day"}</span></div>`).join("");
+  p.innerHTML=`<div class="panel-head"><div><h2>Teachers &amp; rates</h2><div class="small muted">Tap a teacher to change timing or pay. New rates apply to classes marked from then on.</div></div>
+    <button class="primary" data-act="addTeacher" ${state.canWrite?"":"disabled"}>+ Add teacher</button></div><div class="list">${rows}</div>`;
+}
+
+// ---------- sheets ----------
+function closeSheet(){document.getElementById("sheetHost").innerHTML=""}
+function openSheet(html,onSubmit,onDelete){
+  const host=document.getElementById("sheetHost");
+  host.innerHTML=`<div class="overlay" id="ov"><form class="sheet" id="sheetForm" novalidate>${html}</form></div>`;
+  const f=document.getElementById("sheetForm");
+  document.getElementById("ov").addEventListener("click",e=>{if(e.target.id==="ov")closeSheet()});
+  f.addEventListener("submit",async e=>{e.preventDefault();const btn=f.querySelector("[type=submit]");btn.disabled=true;
+    try{const ok=await onSubmit(new FormData(f),f); if(ok!==false) closeSheet(); else btn.disabled=false}catch(err){btn.disabled=false;showErr(f,err)}});
+  f.querySelector("[data-close]")?.addEventListener("click",closeSheet);
+  const del=f.querySelector("[data-delete]");
+  if(del&&onDelete){del.addEventListener("click",async()=>{
+    if(del.dataset.armed){try{await onDelete();closeSheet()}catch(err){showErr(f,err)}}
+    else{del.dataset.armed="1";del.textContent="Tap again to delete"}});}
+  setTimeout(()=>f.querySelector("input:not([type=radio]):not([type=checkbox]),select")?.focus(),30);
+}
+function showErr(f,err){let n=f.querySelector(".notice");if(!n){n=document.createElement("div");n.className="notice err";f.prepend(n)}
+  n.textContent = err?.code==="quota_exceeded" ? "Storage is full. Delete some old classes to add new ones." : (err?.message||String(err||"Something went wrong")) ;}
+function actions(isEdit,label){return `<div class="sheet-actions">${isEdit?`<button type="button" class="danger" data-delete>Delete</button>`:""}<div class="r"><button type="button" class="ghost" data-close>Cancel</button><button type="submit" class="primary">${label}</button></div></div>`}
+
+function teacherSheet(t){
+  const isEdit=!!t; t=t||{payType:"hour"};
+  openSheet(`<h2>${isEdit?"Edit teacher":"Add teacher"}</h2>
+    <div class="grid2"><label class="field"><span>Teacher name</span><input id="f-name" name="name" required value="${esc(t.name||"")}" placeholder="e.g. Sharma Sir"></label>
+    <label class="field"><span>Subject</span><input id="f-subject" name="subject" value="${esc(t.subject||"")}" placeholder="e.g. Maths"></label></div>
+    <div class="field"><span>How do you pay?</span><div class="seg">
+      <label><input type="radio" name="payType" value="hour" ${t.payType==="hour"?"checked":""}><span>Per hour</span></label>
+      <label><input type="radio" name="payType" value="day" ${t.payType==="day"?"checked":""}><span>Per day / class</span></label></div></div>
+    <label class="field"><span id="rateLbl">Rate (₹ per ${t.payType==="hour"?"hour":"day"})</span><input id="f-rate" name="rate" type="number" inputmode="decimal" min="0" step="any" required value="${t.rate??""}" placeholder="e.g. 400"></label>
+    <div class="hint">Class timing is entered each time you mark attendance.</div>
+    ${actions(isEdit,isEdit?"Save":"Add teacher")}`,
+  async fd=>{
+    const data={name:fd.get("name").trim(),subject:fd.get("subject").trim(),payType:fd.get("payType"),rate:Number(fd.get("rate"))};
+    if(!data.name||!(data.rate>=0)||fd.get("rate")==="") throw new Error("Fill in the teacher's name and rate.");
+    if(isEdit){await db.doc("teachers/"+t.id).set({...data,createdAt:t.createdAt||Date.now()});toast("Teacher saved")}
+    else{await db.collection("teachers").add({...data,createdAt:Date.now()});toast("Teacher added")}
+  },
+  isEdit?async()=>{await db.doc("teachers/"+t.id).delete();toast("Teacher removed")}:null);
+  const f=document.getElementById("sheetForm");
+  const upd=()=>{const pt=f.querySelector("[name=payType]:checked")?.value;document.getElementById("rateLbl").textContent=`Rate (₹ per ${pt==="hour"?"hour":"day"})`;};
+  f.addEventListener("input",upd);upd();
+}
+
+function classSheet(s,preset){
+  const isEdit=!!s;
+  const t0=preset?.teacherId?teacherById(preset.teacherId):state.teachers[0];
+  s=s||{teacherId:t0?.id,date:preset?.date||todayISO(),start:"",end:"",status:preset?.status||"present",note:""};
+  const tt=teacherById(s.teacherId);
+  openSheet(`<h2>${isEdit?"Edit class":"Add class"}</h2>
+    <label class="field"><span>Teacher</span><select id="f-teacher" name="teacherId">${state.teachers.map(t=>`<option value="${t.id}" ${t.id===s.teacherId?"selected":""}>${esc(t.name)}${t.subject?" ("+esc(t.subject)+")":""}</option>`).join("")}</select></label>
+    <label class="field"><span>Date</span><input id="f-date" name="date" type="date" required value="${s.date}"></label>
+    <div class="field"><span>What happened?</span><div class="seg">${Object.entries(STATUS).map(([k,v])=>`<label><input type="radio" name="status" value="${k}" ${s.status===k?"checked":""}><span>${v.label}</span></label>`).join("")}</div></div>
+    <div class="grid2" id="timeBox"><label class="field"><span>Class started</span><input id="f-cstart" name="start" type="time" value="${s.start||""}"></label>
+    <label class="field"><span>Class ended</span><input id="f-cend" name="end" type="time" value="${s.end||""}"></label></div>
+    <label class="field"><span>Note (optional)</span><input id="f-note" name="note" value="${esc(s.note||"")}" placeholder="e.g. makeup class, test day"></label>
+    <div id="feeHint"></div>
+    ${actions(isEdit,isEdit?"Save":"Add class")}`,
+  async fd=>{
+    const t=teacherById(fd.get("teacherId"));
+    const keepRate = isEdit && s.teacherId===t.id;
+    const data={teacherId:t.id,date:fd.get("date"),start:fd.get("start"),end:fd.get("end"),status:fd.get("status"),note:fd.get("note").trim(),
+      payType: keepRate? s.payType : t.payType, rate: keepRate? s.rate : t.rate};
+    if(!data.date) throw new Error("Pick the date.");
+    if(data.status==="present"&&(!data.start||!data.end)) throw new Error("Enter when the class started and ended.");
+    if(data.status!=="present"&&!(data.start&&data.end)){data.start="";data.end=""}
+    if(isEdit){await db.doc("sessions/"+s.id).set({...data,createdAt:s.createdAt||Date.now()});toast("Class updated")}
+    else{await db.collection("sessions").add({...data,createdAt:Date.now()});toast("Class added")}
+  },
+  isEdit?async()=>{await db.doc("sessions/"+s.id).delete();toast("Class deleted")}:null);
+  const f=document.getElementById("sheetForm");
+  const upd=e=>{
+    const t=teacherById(f.teacherId.value);
+    const keep=isEdit&&s.teacherId===t?.id;
+    const pt=keep?s.payType:t?.payType, r=keep?s.rate:t?.rate;
+    const st=f.querySelector("[name=status]:checked")?.value;
+    document.getElementById("timeBox").hidden = st!=="present";
+    const h=hoursOf(f.start.value,f.end.value);
+    const amt=STATUS[st]?.paid?(pt==="hour"?h*r:r):0;
+    const fh=document.getElementById("feeHint");
+    if(st!=="present"){fh.innerHTML=`<div class="hint">No fee for this day.</div>`}
+    else if(pt==="hour"&&!h){fh.innerHTML=`<div class="hint">Enter start and end time — the class time and fee (${rupee(r)} per hour) are worked out automatically.</div>`}
+    else{fh.innerHTML=`<div class="feebox"><div><span class="label">Class time</span><b>${h?fmtHrs(h):"—"}</b></div><div><span class="label">Fee</span><b>${rupee(amt)}</b></div><div class="calc">${pt==="hour"?fmtHrs(h)+" × "+rupee(r)+" per hour":"Flat "+rupee(r)+" per day"}</div></div>`}
+  };
+  f.addEventListener("input",upd);f.addEventListener("change",upd);upd();
+}
+
+function paySheet(x,teacherId){
+  const isEdit=!!x;
+  x=x||{teacherId:teacherId||state.teachers[0]?.id,date:todayISO(),amount:"",method:"Cash",note:""};
+  const due=t=>{const b=teacherTotals(t).balance;return b>0?b:0};
+  openSheet(`<h2>${isEdit?"Edit payment":"Record payment"}</h2>
+    <label class="field"><span>Paid to</span><select id="f-pteacher" name="teacherId">${state.teachers.map(t=>`<option value="${t.id}" ${t.id===x.teacherId?"selected":""}>${esc(t.name)}</option>`).join("")}</select></label>
+    <div class="grid2"><label class="field"><span>Amount (₹)</span><input id="f-amount" name="amount" type="number" inputmode="decimal" min="0" step="any" required value="${x.amount}"></label>
+    <label class="field"><span>Date</span><input id="f-pdate" name="date" type="date" required value="${x.date}"></label></div>
+    <div class="field"><span>Paid by</span><div class="seg">${["Cash","UPI","Bank"].map(m=>`<label><input type="radio" name="method" value="${m}" ${x.method===m?"checked":""}><span>${m}</span></label>`).join("")}</div></div>
+    <label class="field"><span>Note (optional)</span><input id="f-pnote" name="note" value="${esc(x.note||"")}" placeholder="e.g. October fees"></label>
+    <div class="hint" id="payHint"></div>
+    ${actions(isEdit,isEdit?"Save":"Save payment")}`,
+  async fd=>{
+    const data={teacherId:fd.get("teacherId"),amount:Number(fd.get("amount")),date:fd.get("date"),method:fd.get("method")||"",note:fd.get("note").trim()};
+    if(!(data.amount>0)||!data.date) throw new Error("Enter the amount and date.");
+    if(isEdit){await db.doc("payments/"+x.id).set({...data,createdAt:x.createdAt||Date.now()});toast("Payment updated")}
+    else{await db.collection("payments").add({...data,createdAt:Date.now()});toast("Payment saved")}
+  },
+  isEdit?async()=>{await db.doc("payments/"+x.id).delete();toast("Payment deleted")}:null);
+  const f=document.getElementById("sheetForm");
+  const upd=()=>{const t=teacherById(f.teacherId.value);if(!t)return;const d=due(t);
+    document.getElementById("payHint").innerHTML=isEdit?"":`Currently due to ${esc(t.name)}: <b class="num">${rupee(d)}</b>${d>0?` <button type="button" class="ghost small" id="fillDue" style="padding:0 4px">Use this amount</button>`:""}`;
+    document.getElementById("fillDue")?.addEventListener("click",()=>{f.amount.value=Math.round(d*100)/100})};
+  f.teacherId.addEventListener("change",upd);upd();
+}
+
+// ---------- events ----------
+document.getElementById("prevM").onclick=()=>{state.month=shiftMonth(state.month,-1);render()};
+document.getElementById("nextM").onclick=()=>{state.month=shiftMonth(state.month,1);render()};
+document.querySelector(".tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(!b)return;state.tab=b.dataset.tab;try{localStorage.setItem("tab",state.tab)}catch{}render()});
+document.addEventListener("change",e=>{if(e.target.id==="tf"){state.filterTeacher=e.target.value;render()}});
+function guard(){if(!db){toast("Saving isn't available in this view");return false}if(!state.canWrite){toast("You can view this register but not change it");return false}return true}
+async function handle(e){
+  const el=e.target.closest("[data-act],[data-quick],[data-edit],[data-editpay],[data-editteacher],[data-pay]");
+  if(!el||el.closest("#sheetHost"))return;
+  if(el.dataset.act==="addTeacher"){guard()&&teacherSheet()}
+  else if(el.dataset.act==="addClass"){guard()&&classSheet()}
+  else if(el.dataset.act==="addPay"){guard()&&paySheet(null,state.filterTeacher!=="all"?state.filterTeacher:undefined)}
+  else if(el.dataset.pay){guard()&&paySheet(null,el.dataset.pay)}
+  else if(el.dataset.quick){
+    if(!guard())return;const t=teacherById(el.dataset.t);
+    if(el.dataset.quick==="present"){classSheet(null,{teacherId:t.id,status:"present"});return}
+    el.disabled=true;
+    try{await db.collection("sessions").add({teacherId:t.id,date:todayISO(),start:"",end:"",status:el.dataset.quick,note:"",payType:t.payType,rate:t.rate,createdAt:Date.now()});
+      toast(el.dataset.quick==="present"?"Marked attended":"Marked absent")}catch(err){el.disabled=false;toast(err?.message||"Couldn't save")}
+  }
+  else if(el.dataset.edit){const s=state.sessions.find(s=>s.id===el.dataset.edit);if(s&&guard())classSheet(s)}
+  else if(el.dataset.editpay){const x=state.payments.find(x=>x.id===el.dataset.editpay);if(x&&guard())paySheet(x)}
+  else if(el.dataset.editteacher){const t=teacherById(el.dataset.editteacher);if(t&&guard())teacherSheet(t)}
+}
+document.addEventListener("click",handle);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheet();if(e.key==="Enter"&&e.target.matches(".row.click"))handle(e)});
+
+// ---------- data ----------
+try{const t=localStorage.getItem("tab");if(t)state.tab=t}catch{}
+render();
+
+// ---------- local storage (data stays on this phone) ----------
+const KEY="tuition-register-v1";
+function loadAll(){try{const d=JSON.parse(localStorage.getItem(KEY)||"{}");return {teachers:d.teachers||{},sessions:d.sessions||{},payments:d.payments||{}}}catch{return {teachers:{},sessions:{},payments:{}}}}
+let store=loadAll();
+const listeners={teachers:[],sessions:[],payments:[]};
+function persist(){
+  try{localStorage.setItem(KEY,JSON.stringify(store))}catch(e){throw new Error("Couldn't save on this phone. Storage may be full or blocked.")}
+  for(const n in listeners) emit(n);
+}
+function emit(n){const docs=Object.entries(store[n]).map(([id,v])=>({id,data:()=>v}));listeners[n].forEach(cb=>cb({docs,metadata:{fromCache:false}}))}
+function newId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+db={
+  collection(n){return{
+    add:async d=>{store[n][newId()]=d;persist()},
+    onSnapshot(cb){listeners[n].push(cb);emit(n);return()=>{}}
+  }},
+  doc(path){const [n,id]=path.split("/");return{
+    set:async d=>{store[n][id]=d;persist()},
+    delete:async()=>{delete store[n][id];persist()}
+  }}
+};
+function start(){
+  try{if(navigator.storage?.persist)navigator.storage.persist()}catch{}
+  const sub=n=>db.collection(n).onSnapshot(snap=>{
+    state[n]=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+    state.loaded[n]=true;render();
+  });
+  sub("teachers");sub("sessions");sub("payments");
+}
+// ---------- backup / restore ----------
+document.getElementById("backupBtn").onclick=()=>{
+  const blob=new Blob([JSON.stringify({app:"tuition-register",version:1,savedAt:new Date().toISOString(),data:store},null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="tuition-backup-"+todayISO()+".json";
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+  try{localStorage.setItem(KEY+"-lastbackup",todayISO())}catch{}
+  toast("Backup file saved");
+};
+document.getElementById("restoreBtn").onclick=()=>document.getElementById("restoreFile").click();
+document.getElementById("restoreFile").onchange=async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{const j=JSON.parse(await f.text());const d=j.data||j;
+    if(!d.teachers||!d.sessions||!d.payments) throw 0;
+    openSheet(`<h2>Restore backup?</h2><p class="muted" style="margin:0">This replaces everything on this phone with the backup from ${esc(j.savedAt?new Date(j.savedAt).toLocaleDateString("en-IN"):"the file")}: ${Object.keys(d.teachers).length} teachers, ${Object.keys(d.sessions).length} classes, ${Object.keys(d.payments).length} payments.</p>
+      <div class="sheet-actions"><div class="r"><button type="button" class="ghost" data-close>Cancel</button><button type="submit" class="primary">Replace and restore</button></div></div>`,
+      async()=>{store={teachers:d.teachers,sessions:d.sessions,payments:d.payments};persist();toast("Backup restored")});
+  }catch{toast("That file isn't a tuition backup")}
+};
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))}
+start();
+})();
+</script>
+</body>
+</html>
