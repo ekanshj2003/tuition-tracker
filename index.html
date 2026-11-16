@@ -128,6 +128,8 @@ input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:
 .feebox b{font-family:var(--display);font-size:1.35rem;font-variant-numeric:tabular-nums;color:var(--ink)}
 .feebox .calc{grid-column:1/-1;font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .backup{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:16px;margin-top:8px}
+.syncrow{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.syncrow .err{color:var(--bad)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:999px;font-size:.88rem;z-index:60}
 @media (max-width:420px){.row{grid-template-columns:52px 1fr auto;gap:10px;padding:11px 12px}.due-total{font-size:1.9rem}}
 @media (max-width:520px){.today-row{grid-template-columns:1fr}.today-row .mark{justify-content:flex-start}}
@@ -172,7 +174,11 @@ input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:
   <section class="panel" id="panel"></section>
 
   <footer class="backup">
-    <div class="small muted">Your records are saved on this phone only. Save a backup file now and then (e.g. to WhatsApp or Google Drive) so nothing is lost.</div>
+    <div class="syncrow">
+      <div style="min-width:0"><div class="t" style="font-weight:600">Sync between phones</div><div class="small muted" id="syncStatus">Sync is off. Records are saved on this phone only.</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button id="syncNowBtn" hidden>Sync now</button><button id="syncSetupBtn">Set up sync</button></div>
+    </div>
+    <div class="small muted">Backup file: keep a copy of everything (e.g. on WhatsApp or Google Drive).</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="backupBtn">Save backup</button>
       <button id="restoreBtn">Restore backup</button>
@@ -496,41 +502,105 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheet();if(e.ke
 try{const t=localStorage.getItem("tab");if(t)state.tab=t}catch{}
 render();
 
-// ---------- local storage (data stays on this phone) ----------
-const KEY="tuition-register-v1";
-function loadAll(){try{const d=JSON.parse(localStorage.getItem(KEY)||"{}");return {teachers:d.teachers||{},sessions:d.sessions||{},payments:d.payments||{}}}catch{return {teachers:{},sessions:{},payments:{}}}}
-let store=loadAll();
+// ---------- storage on this phone + sync through Google Sheet ----------
+const KEY="tuition-register-v1", PKEY=KEY+"-pending", SKEY=KEY+"-sync";
+function lsGet(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}}
+const COLLS=["teachers","sessions","payments"];
+let store=(()=>{const d=lsGet(KEY,{});return {teachers:d.teachers||{},sessions:d.sessions||{},payments:d.payments||{}}})();
+let pending=new Set(lsGet(PKEY,[]));
+let syncCfg=lsGet(SKEY,{url:"",key:"",last:0,err:""});
 const listeners={teachers:[],sessions:[],payments:[]};
-function persist(){
-  try{localStorage.setItem(KEY,JSON.stringify(store))}catch(e){throw new Error("Couldn't save on this phone. Storage may be full or blocked.")}
-  for(const n in listeners) emit(n);
+function clean(v){const {_u,_d,...rest}=v;return rest}
+function emit(n){const docs=Object.entries(store[n]).filter(([,v])=>!v._d).map(([id,v])=>({id,data:()=>clean(v)}));listeners[n].forEach(cb=>cb({docs,metadata:{fromCache:false}}))}
+function persist(push){
+  if(!lsSet(KEY,store)) throw new Error("Couldn't save on this phone. Storage may be full or blocked.");
+  lsSet(PKEY,[...pending]);
+  COLLS.forEach(emit);
+  if(push&&syncCfg.url) scheduleSync(400);
+  renderSync();
 }
-function emit(n){const docs=Object.entries(store[n]).map(([id,v])=>({id,data:()=>v}));listeners[n].forEach(cb=>cb({docs,metadata:{fromCache:false}}))}
+function touch(n,id,data,del){const u=Date.now();store[n][id]=del?{_d:true,_u:u}:{...data,_u:u};pending.add(n+"/"+id);persist(true)}
 function newId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 db={
-  collection(n){return{
-    add:async d=>{store[n][newId()]=d;persist()},
-    onSnapshot(cb){listeners[n].push(cb);emit(n);return()=>{}}
-  }},
-  doc(path){const [n,id]=path.split("/");return{
-    set:async d=>{store[n][id]=d;persist()},
-    delete:async()=>{delete store[n][id];persist()}
-  }}
+  collection(n){return{add:async d=>touch(n,newId(),d),onSnapshot(cb){listeners[n].push(cb);emit(n);return()=>{}}}},
+  doc(path){const [n,id]=path.split("/");return{set:async d=>touch(n,id,d),delete:async()=>touch(n,id,null,true)}}
 };
+
+let syncing=false,syncAgain=false,syncTimer=null;
+function scheduleSync(ms){clearTimeout(syncTimer);syncTimer=setTimeout(syncNow,ms)}
+async function syncNow(){
+  if(!syncCfg.url) return;
+  if(syncing){syncAgain=true;return}
+  syncing=true;renderSync();
+  const sent=[...pending];
+  const changes=sent.map(k=>{const [c,id]=k.split("/");const v=store[c]?.[id];if(!v)return null;return {c,id,u:v._u||0,d:!!v._d,data:v._d?null:clean(v)}}).filter(Boolean);
+  try{
+    const r=await fetch(syncCfg.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({key:syncCfg.key,changes})});
+    let j;try{j=await r.json()}catch{throw new Error("The sync link didn't answer correctly. Check the link and that access is set to “Anyone”.")}
+    if(!j.ok) throw new Error(j.error==="wrong key"?"Wrong sync key. Use the same key as in the Google script.":"Sync failed: "+(j.error||"unknown error"));
+    for(const ch of changes){const k=ch.c+"/"+ch.id;if((store[ch.c][ch.id]?._u||0)===ch.u) pending.delete(k)}
+    for(const rec of j.records||[]){
+      if(!store[rec.c]) continue;
+      if(pending.has(rec.c+"/"+rec.id)) continue;
+      const loc=store[rec.c][rec.id];
+      if(!loc||(Number(rec.u)||0)>(loc._u||0)) store[rec.c][rec.id]=rec.d?{_d:true,_u:Number(rec.u)}:{...rec.data,_u:Number(rec.u)};
+    }
+    syncCfg.last=Date.now();syncCfg.err="";
+  }catch(e){
+    syncCfg.err=navigator.onLine===false?"Offline. Changes will sync when you're back online.":(e.message||"Sync failed");
+  }finally{
+    syncing=false;lsSet(SKEY,syncCfg);
+    try{persist(false)}catch{}
+    if(syncAgain){syncAgain=false;scheduleSync(200)}
+  }
+}
+function renderSync(){
+  const el=document.getElementById("syncStatus");if(!el)return;
+  document.getElementById("syncNowBtn").hidden=!syncCfg.url;
+  document.getElementById("syncSetupBtn").textContent=syncCfg.url?"Sync settings":"Set up sync";
+  if(!syncCfg.url){el.className="small muted";el.textContent="Sync is off. Records are saved on this phone only.";return}
+  if(syncing){el.className="small muted";el.textContent="Syncing…";return}
+  if(syncCfg.err){el.className="small err";el.textContent=syncCfg.err;return}
+  const n=pending.size;
+  el.className="small muted";
+  el.textContent=(syncCfg.last?"Synced at "+new Date(syncCfg.last).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"}):"Not synced yet")+(n?` · ${n} change${n>1?"s":""} waiting`:"");
+}
+document.getElementById("syncNowBtn").onclick=()=>syncNow();
+document.getElementById("syncSetupBtn").onclick=()=>{
+  openSheet(`<h2>Sync between phones</h2>
+    <p class="small muted" style="margin:0">Enter the same link and key on every phone. Setup steps are in the README file (Google Sheet + script, takes about 5 minutes).</p>
+    <label class="field"><span>Google script link</span><input id="f-surl" name="url" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(syncCfg.url)}"></label>
+    <label class="field"><span>Sync key</span><input id="f-skey" name="key" placeholder="the secret key from the script" value="${esc(syncCfg.key)}"></label>
+    <div class="sheet-actions">${syncCfg.url?`<button type="button" class="danger" id="syncOff">Turn off sync</button>`:""}<div class="r"><button type="button" class="ghost" data-close>Cancel</button><button type="submit" class="primary">Save and sync</button></div></div>`,
+  async fd=>{
+    const url=fd.get("url").trim(),key=fd.get("key").trim();
+    if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) throw new Error("Paste the web app link from Google Apps Script (it starts with https://script.google.com/).");
+    if(!key) throw new Error("Enter the sync key.");
+    const changed=url!==syncCfg.url||key!==syncCfg.key;
+    syncCfg={url,key,last:changed?0:syncCfg.last,err:""};lsSet(SKEY,syncCfg);
+    if(changed){COLLS.forEach(c=>Object.keys(store[c]).forEach(id=>pending.add(c+"/"+id)));lsSet(PKEY,[...pending])}
+    renderSync();syncNow();toast("Sync turned on");
+  });
+  document.getElementById("syncOff")?.addEventListener("click",()=>{syncCfg={url:"",key:"",last:0,err:""};lsSet(SKEY,syncCfg);closeSheet();renderSync();toast("Sync turned off on this phone")});
+};
+setInterval(()=>{if(document.visibilityState==="visible")syncNow()},30000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")syncNow()});
+window.addEventListener("online",()=>syncNow());
+
 function start(){
   try{if(navigator.storage?.persist)navigator.storage.persist()}catch{}
   const sub=n=>db.collection(n).onSnapshot(snap=>{
     state[n]=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
     state.loaded[n]=true;render();
   });
-  sub("teachers");sub("sessions");sub("payments");
+  COLLS.forEach(sub);renderSync();syncNow();
 }
 // ---------- backup / restore ----------
 document.getElementById("backupBtn").onclick=()=>{
   const blob=new Blob([JSON.stringify({app:"tuition-register",version:1,savedAt:new Date().toISOString(),data:store},null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="tuition-backup-"+todayISO()+".json";
   document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
-  try{localStorage.setItem(KEY+"-lastbackup",todayISO())}catch{}
   toast("Backup file saved");
 };
 document.getElementById("restoreBtn").onclick=()=>document.getElementById("restoreFile").click();
@@ -538,9 +608,15 @@ document.getElementById("restoreFile").onchange=async e=>{
   const f=e.target.files[0];e.target.value="";if(!f)return;
   try{const j=JSON.parse(await f.text());const d=j.data||j;
     if(!d.teachers||!d.sessions||!d.payments) throw 0;
-    openSheet(`<h2>Restore backup?</h2><p class="muted" style="margin:0">This replaces everything on this phone with the backup from ${esc(j.savedAt?new Date(j.savedAt).toLocaleDateString("en-IN"):"the file")}: ${Object.keys(d.teachers).length} teachers, ${Object.keys(d.sessions).length} classes, ${Object.keys(d.payments).length} payments.</p>
+    const live=c=>Object.values(d[c]).filter(v=>!v._d).length;
+    openSheet(`<h2>Restore backup?</h2><p class="muted" style="margin:0">This replaces all records${syncCfg.url?" on every synced phone":" on this phone"} with the backup from ${esc(j.savedAt?new Date(j.savedAt).toLocaleDateString("en-IN"):"the file")}: ${live("teachers")} teachers, ${live("sessions")} classes, ${live("payments")} payments.</p>
       <div class="sheet-actions"><div class="r"><button type="button" class="ghost" data-close>Cancel</button><button type="submit" class="primary">Replace and restore</button></div></div>`,
-      async()=>{store={teachers:d.teachers,sessions:d.sessions,payments:d.payments};persist();toast("Backup restored")});
+      async()=>{const u=Date.now();
+        COLLS.forEach(c=>{
+          Object.keys(store[c]).forEach(id=>{if(!d[c][id]){store[c][id]={_d:true,_u:u};pending.add(c+"/"+id)}});
+          Object.entries(d[c]).forEach(([id,v])=>{store[c][id]={...v,_u:u};pending.add(c+"/"+id)});
+        });
+        persist(true);toast("Backup restored")});
   }catch{toast("That file isn't a tuition backup")}
 };
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))}
